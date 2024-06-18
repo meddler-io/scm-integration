@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "scm-integration"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+requests = "^2.32.3"
+bson = "^0.5.10"
+nats-py = "^2.7.2"
+python-dotenv = "^1.0.1"
+aiohttp = "^3.9.5"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
