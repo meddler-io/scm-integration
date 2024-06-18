@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+
+  worker:
+    build: .
+    # scale: 4  # Scale worker to 4 instances
+    volumes:
+      - ./:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    restart: always  # Ensure each worker instance always restarts
