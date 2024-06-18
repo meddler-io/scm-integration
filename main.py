@@ -1,2 +1,2 @@
 from scm import scm
-scm.init()
+scm.main()

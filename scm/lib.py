@@ -24,7 +24,7 @@ async def get_data(url, headers={}, data={}):
 
 
 
-async def get_scm_data(platform, access_token):
+async def get_scm_data(platform, access_token, update_callback):
     try:
         all_data = {
             'organizations': [],
@@ -33,36 +33,51 @@ async def get_scm_data(platform, access_token):
         }
 
         async with aiohttp.ClientSession() as session:
+            session.callback = update_callback
             if platform == 'bitbucket':
+                
+                session.schema = 'organizations'
                 organizations = await get_bitbucket_workspaces(session, access_token)
                 all_data['organizations'] = organizations
                 
                 for organization in organizations:
+                    session.schema = 'projects'
                     projects = await get_bitbucket_projects(session, access_token, organization['slug'])
                     all_data['projects'].extend(projects)
                     
+                    session.schema = 'repositories'
                     repositories = await get_bitbucket_repositories(session, access_token, organization['slug'])
                     all_data['repositories'].extend(repositories)
 
             elif platform == 'github':
+                
+                session.schema = 'organizations'
                 organizations = await get_github_organizations(session, access_token)
                 all_data['organizations'] = organizations
                 
+                session.schema = 'repositories'
                 repositories = await get_github_repositories(session, access_token)
                 all_data['repositories'] = repositories
 
             elif platform == 'gitlab':
+                
+                session.schema = 'organizations'
                 organizations = await get_gitlab_groups(session, access_token)
                 all_data['organizations'] = organizations
                 
                 for organization in organizations:
+                    session.schema = 'organizations'
                     subgroups = await get_gitlab_subgroups(session, access_token, organization['id'])
                     all_data['organizations'].extend(subgroups)  # Treat subgroups as organizations
                     
+                    
+                    session.schema = 'projects'
                     projects = await get_gitlab_projects(session, access_token, organization['id'])
                     all_data['projects'].extend(projects)
                     
                     for project in projects:
+                        
+                        session.schema = 'repositories'
                         repositories = await get_gitlab_repositories(session, access_token, project['id'])
                         all_data['repositories'].extend(repositories)
 
@@ -74,15 +89,23 @@ async def get_scm_data(platform, access_token):
 
 async def get_paginated_results(session, url, headers):
     results = []
+    callback = session.callback
+    schema = session.schema
+    print("get_paginated_results", get_paginated_results)
     while url:
+        
         async with session.get(url, headers=headers) as response:
             if response.status == 200:
                 data = await response.json()
                 if isinstance(data, dict):
-                    results.extend(data.get('values', []) if 'values' in data else [])
+                    results = data.get('values', []) if 'values' in data else []
+                    await callback( { schema:  results } )
+                    
                     url = data.get('next')  # Bitbucket uses 'next' for pagination
                 elif isinstance(data, list):
-                    results.extend(data)
+                    results = data
+                    await callback( { schema:  results } )
+                    
                     url = None
                 else:
                     url = None

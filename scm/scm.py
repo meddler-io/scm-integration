@@ -1,4 +1,5 @@
 
+import json
 from scm import lib
 import os
 from time import sleep
@@ -26,6 +27,69 @@ if None in [NATS_CONNECTION_STRING, NATS_SUBJECT]:
     raise Exception("NATS message queue credentials missing")
 
 
+async def handleMsg(msg):
+
+    print(" msg", msg)
+    msg = json_util.loads(msg )
+    
+    print("msg", msg)
+    source = msg["source"]
+    access_token = msg["access_token"]
+    
+    
+    
+    webhook_completed , webhook_failed, webhook_processing  = None , None , None
+    
+    webhooks = msg["webhooks"]
+    
+    
+    try:
+        webhook_processing = webhooks["processing"]
+        await lib.put_data( webhook_processing )
+    except:
+        raise Exception("No processing webhook")
+    
+        
+    async def update_callback(data):
+        return await  lib.put_data( webhook_processing , data=data )
+        
+        
+        
+    try:
+        print("gettijg data")
+        data = await lib.get_scm_data( source , access_token , update_callback  )
+
+    except:
+        traceback.print_exc()
+        
+        raise Exception("Failed to push data while processing")
+
+        
+    try:
+        
+        if data:
+            try:
+                webhook_completed = webhooks["completed"]
+                # Completed
+                await lib.put_data( webhook_completed , data={} )
+                
+            except:
+                traceback.print_exc()
+                pass
+        else:
+            raise Exception("failed")
+    except Exception as err:
+        try:
+            webhook_failed = webhooks["failed"]
+            await lib.put_data( webhook_failed , data=str(err))
+            
+        except:
+            pass
+
+
+
+
+
 async def main():
     nc = await nats.connect(NATS_CONNECTION_STRING)
 
@@ -44,48 +108,8 @@ async def main():
             for msg in msgs:
                 try:
                     await msg.ack()
-                    print(" msg", msg)
-                    msg = json_util.loads(msg.data.decode())
-                    
-                    print("msg", msg)
-                    source = msg["source"]
-                    access_token = msg["access_token"]
-                    
-                    
-                    
-                    webhook_completed , webhook_failed, webhook_processing  = None , None , None
-                    
-                    webhooks = msg["webhooks"]
-                    
-                    
-                    try:
-                        webhook_processing = webhooks["processing"]
-                        await lib.put_data( webhook_processing )
-                    except:
-                        pass
-                    
-                        
-                    try:
-                        data = await lib.get_scm_data( source , access_token  )
-                        
-                        if data:
-                            try:
-                                webhook_completed = webhooks["completed"]
-                                await lib.put_data( webhook_completed , data=data )
-                                
-                            except:
-                                pass
-                        else:
-                            raise Exception("failed")
-                    except Exception as err:
-                        try:
-                            webhook_failed = webhooks["failed"]
-                            await lib.put_data( webhook_failed , data=str(err))
-                            
-                        except:
-                            pass
-                    print("Done")
-                    # sleep(5)
+                    await handleMsg(msg.data.decode() )
+                  
                 except:
                     pass
         except Exception as er:
@@ -94,16 +118,24 @@ async def main():
     # Create deliver group that will be have load balanced messages.
 
 
-sample_msg = {
-    "source": "bitbucket",
-    "access_token": "",
-    "callback_url": "",
-}
+def test():
+    sample_msg = {
+        "source": "bitbucket",
+        "access_token": "",
+        "callback_url": "",
+    }
+      
+    # asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    
+    sample_msg = json.dumps(sample_msg)
+    loop.run_until_complete(handleMsg( sample_msg ))
 
+# Test Functio
 def init():
     # asyncio.run(main())
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
 
 if __name__ == '__main__':
-    init()
+    test()
