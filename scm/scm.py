@@ -15,12 +15,16 @@ NATS_SUBJECT = os.getenv("NATS_SUBJECT", None)
 NATS_CONNECTION_STRING = os.getenv("NATS_CONNECTION_STRING", None)
 
 
-if None in [NATS_CONNECTION_STRING, NATS_SUBJECT]:
-    raise Exception("NATS message queue credentials missing")
-
 
 # Make env differntiator
 NATS_SUBJECT = ("" if IS_PROD else "dev:" ) + NATS_SUBJECT
+
+
+print("NATS", NATS_CONNECTION_STRING, NATS_SUBJECT)
+
+if None in [NATS_CONNECTION_STRING, NATS_SUBJECT]:
+    raise Exception("NATS message queue credentials missing")
+
 
 async def main():
     nc = await nats.connect(NATS_CONNECTION_STRING)
