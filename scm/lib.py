@@ -61,9 +61,20 @@ async def get_scm_data(platform, access_token, update_callback):
 
             elif platform == 'gitlab':
                 
+                
+                # personal_projects
+                session.schema = 'projects'
+                personal_projects = await get_gitlab_personal_projects(session, access_token, organization['id'])
+                all_data['projects'].extend(personal_projects)  # Treat subgroups as organizations
+                
+                
+                
+                # 
                 session.schema = 'organizations'
                 organizations = await get_gitlab_groups(session, access_token)
                 all_data['organizations'] = organizations
+                
+                # 
                 
                 for organization in organizations:
                     session.schema = 'organizations'
@@ -157,6 +168,13 @@ async def get_gitlab_projects(session, access_token, group_id):
     url = f'https://gitlab.com/api/v4/groups/{group_id}/projects'
     headers = {'Authorization': f'Bearer {access_token}'}
     return await get_paginated_results(session, url, headers)
+
+async def get_gitlab_personal_projects(session, access_token, group_id):
+    url = f'https://gitlab.com/api/v4/projects?owned=true'
+    headers = {'Authorization': f'Bearer {access_token}'}
+    return await get_paginated_results(session, url, headers)
+
+
 
 async def get_gitlab_repositories(session, access_token, project_id):
     # GitLab does not have a separate concept of repositories; projects are repositories

@@ -47,10 +47,12 @@ async def handleMsg(msg):
         webhook_processing = webhooks["processing"]
         await lib.put_data( webhook_processing )
     except:
+        traceback.print_exc()
         raise Exception("No processing webhook")
     
         
     async def update_callback(data):
+        print("update_callback", data)
         return await  lib.put_data( webhook_processing , data=data )
         
         
@@ -79,11 +81,14 @@ async def handleMsg(msg):
         else:
             raise Exception("failed")
     except Exception as err:
+        traceback.print_exc()
+        
         try:
             webhook_failed = webhooks["failed"]
             await lib.put_data( webhook_failed , data=str(err))
             
         except:
+            traceback.print_exc()
             pass
 
 
