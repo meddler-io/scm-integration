@@ -64,7 +64,7 @@ async def get_scm_data(platform, access_token, update_callback):
                 
                 # personal_projects
                 session.schema = 'projects'
-                personal_projects = await get_gitlab_personal_projects(session, access_token, organization['id'])
+                personal_projects = await get_gitlab_personal_projects(session, access_token  )
                 all_data['projects'].extend(personal_projects)  # Treat subgroups as organizations
                 
                 
@@ -169,7 +169,7 @@ async def get_gitlab_projects(session, access_token, group_id):
     headers = {'Authorization': f'Bearer {access_token}'}
     return await get_paginated_results(session, url, headers)
 
-async def get_gitlab_personal_projects(session, access_token, group_id):
+async def get_gitlab_personal_projects(session, access_token):
     url = f'https://gitlab.com/api/v4/projects?owned=true'
     headers = {'Authorization': f'Bearer {access_token}'}
     return await get_paginated_results(session, url, headers)
