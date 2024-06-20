@@ -63,10 +63,9 @@ async def get_scm_data(platform, access_token, update_callback):
                 
                 
                 # personal_projects
-                session.schema = 'projects'
-                personal_projects = await get_gitlab_personal_projects(session, access_token  )
-                all_data['projects'].extend(personal_projects)  # Treat subgroups as organizations
-                
+                session.schema = 'repositories'
+                personal_projects_repos = await get_gitlab_personal_projects(session, access_token  )
+                all_data['repositories'].extend(personal_projects_repos)  # Treat subgroups as organizations
                 
                 
                 # 
