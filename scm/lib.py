@@ -130,47 +130,47 @@ async def get_paginated_results(session, url, headers):
 
 async def get_bitbucket_workspaces(session, access_token):
     url = 'https://api.bitbucket.org/2.0/workspaces'
-    headers = {'Authorization': f'Bearer {access_token}'}
+    headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_bitbucket_projects(session, access_token, workspace_slug):
     url = f'https://api.bitbucket.org/2.0/workspaces/{workspace_slug}/projects'
-    headers = {'Authorization': f'Bearer {access_token}'}
+    headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_bitbucket_repositories(session, access_token, workspace_slug):
     url = f'https://api.bitbucket.org/2.0/repositories/{workspace_slug}'
-    headers = {'Authorization': f'Bearer {access_token}'}
+    headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_github_organizations(session, access_token):
     url = 'https://api.github.com/user/orgs'
-    headers = {'Authorization': f'token {access_token}', 'Accept': 'application/vnd.github.v3+json'}
+    headers = {'Authorization': f'{access_token}', 'Accept': 'application/vnd.github.v3+json'}
     return await get_paginated_results(session, url, headers)
 
 async def get_github_repositories(session, access_token):
     url = 'https://api.github.com/user/repos'
-    headers = {'Authorization': f'token {access_token}', 'Accept': 'application/vnd.github.v3+json'}
+    headers = {'Authorization': f'{access_token}', 'Accept': 'application/vnd.github.v3+json'}
     return await get_paginated_results(session, url, headers)
 
 async def get_gitlab_groups(session, access_token):
     url = 'https://gitlab.com/api/v4/groups'
-    headers = {'Authorization': f'Bearer {access_token}'}
+    headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_gitlab_subgroups(session, access_token, group_id):
     url = f'https://gitlab.com/api/v4/groups/{group_id}/subgroups'
-    headers = {'Authorization': f'Bearer {access_token}'}
+    headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_gitlab_projects(session, access_token, group_id):
     url = f'https://gitlab.com/api/v4/groups/{group_id}/projects'
-    headers = {'Authorization': f'Bearer {access_token}'}
+    headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_gitlab_personal_projects(session, access_token):
     url = f'https://gitlab.com/api/v4/projects?owned=true'
-    headers = {'Authorization': f'Bearer {access_token}'}
+    headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 
