@@ -29,14 +29,18 @@ if None in [NATS_CONNECTION_STRING, NATS_SUBJECT]:
 
 async def handleMsg(msg):
 
-    print(" msg", msg)
+
     msg = json_util.loads(msg )
     
     print("msg", msg)
     source = msg["source"]
     access_token = msg["access_token"]
     
+    host = None
+    if "host" in msg:
+        host = msg["host"]
     
+
     
     webhook_completed , webhook_failed, webhook_processing  = None , None , None
     
@@ -52,14 +56,13 @@ async def handleMsg(msg):
     
         
     async def update_callback(data):
-        print("update_callback", data)
         return await  lib.put_data( webhook_processing , data=data )
         
         
         
     try:
         print("gettijg data")
-        data = await lib.get_scm_data( source , access_token , update_callback  )
+        data = await lib.get_scm_data( source , access_token , update_callback , host  )
 
     except:
         traceback.print_exc()

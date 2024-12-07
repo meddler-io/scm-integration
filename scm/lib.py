@@ -1,6 +1,32 @@
+from contextlib import asynccontextmanager
 import aiohttp
 import asyncio
 import json
+
+import contextvars
+
+_BITBUCKET_API_HOST = "https://api.bitbucket.org"
+_GITHUB_API_HOST = "https://api.github.com"
+_GITLAB_API_HOST = "https://gitlab.com"
+
+BITBUCKET_API_HOST = contextvars.ContextVar("BITBUCKET_API_HOST", default=_BITBUCKET_API_HOST)
+GITHUB_API_HOST = contextvars.ContextVar("GITHUB_API_HOST", default=_GITHUB_API_HOST)
+GITLAB_API_HOST = contextvars.ContextVar("BITBUCKET_API_HOST", default=_GITLAB_API_HOST)
+
+CUSTOM_API_HOST = None
+
+@asynccontextmanager
+async def init_variables(variable : contextvars.ContextVar , custom_url = None  ):
+    initial_value = variable.get()
+    if custom_url:
+        variable.set(custom_url)
+    try:
+        yield variable.get()  # Yield the current value for use inside the block
+    finally:
+        # Reset to the previous state
+        variable.set(initial_value)
+
+
 
 
 async def put_data(url, headers={}, data={}):
@@ -24,7 +50,7 @@ async def get_data(url, headers={}, data={}):
 
 
 
-async def get_scm_data(platform, access_token, update_callback):
+async def get_scm_data(platform, access_token, update_callback , custom_url = None):
     try:
         all_data = {
             'organizations': [],
@@ -35,62 +61,64 @@ async def get_scm_data(platform, access_token, update_callback):
         async with aiohttp.ClientSession() as session:
             session.callback = update_callback
             if platform == 'bitbucket':
-                
-                session.schema = 'organizations'
-                organizations = await get_bitbucket_workspaces(session, access_token)
-                all_data['organizations'] = organizations
-                
-                for organization in organizations:
-                    session.schema = 'projects'
-                    projects = await get_bitbucket_projects(session, access_token, organization['slug'])
-                    all_data['projects'].extend(projects)
+                async with init_variables(BITBUCKET_API_HOST , custom_url ):
                     
-                    session.schema = 'repositories'
-                    repositories = await get_bitbucket_repositories(session, access_token, organization['slug'])
-                    all_data['repositories'].extend(repositories)
-
-            elif platform == 'github':
-                
-                session.schema = 'organizations'
-                organizations = await get_github_organizations(session, access_token)
-                all_data['organizations'] = organizations
-                
-                session.schema = 'repositories'
-                repositories = await get_github_repositories(session, access_token)
-                all_data['repositories'] = repositories
-
-            elif platform == 'gitlab':
-                
-                
-                # personal_projects
-                session.schema = 'repositories'
-                personal_projects_repos = await get_gitlab_personal_projects(session, access_token  )
-                all_data['repositories'].extend(personal_projects_repos)  # Treat subgroups as organizations
-                
-                
-                # 
-                session.schema = 'organizations'
-                organizations = await get_gitlab_groups(session, access_token)
-                all_data['organizations'] = organizations
-                
-                # 
-                
-                for organization in organizations:
                     session.schema = 'organizations'
-                    subgroups = await get_gitlab_subgroups(session, access_token, organization['id'])
-                    all_data['organizations'].extend(subgroups)  # Treat subgroups as organizations
+                    organizations = await get_bitbucket_workspaces(session, access_token)
+                    all_data['organizations'] = organizations
                     
-                    
-                    session.schema = 'projects'
-                    projects = await get_gitlab_projects(session, access_token, organization['id'])
-                    all_data['projects'].extend(projects)
-                    
-                    for project in projects:
+                    for organization in organizations:
+                        session.schema = 'projects'
+                        projects = await get_bitbucket_projects(session, access_token, organization['slug'])
+                        all_data['projects'].extend(projects)
                         
                         session.schema = 'repositories'
-                        repositories = await get_gitlab_repositories(session, access_token, project['id'])
+                        repositories = await get_bitbucket_repositories(session, access_token, organization['slug'])
                         all_data['repositories'].extend(repositories)
 
+            elif platform == 'github':
+                async with init_variables(GITHUB_API_HOST , custom_url ):
+                
+                    session.schema = 'organizations'
+                    organizations = await get_github_organizations(session, access_token)
+                    all_data['organizations'] = organizations
+                    
+                    session.schema = 'repositories'
+                    repositories = await get_github_repositories(session, access_token)
+                    all_data['repositories'] = repositories
+
+            elif platform == 'gitlab':
+
+                
+                async with init_variables(GITLAB_API_HOST , custom_url ):
+                # personal_projects
+                    session.schema = 'repositories'
+                    personal_projects_repos = await get_gitlab_personal_projects(session, access_token  )
+                    print("personal_projects_repos", len(personal_projects_repos))
+                    all_data['repositories'].extend(personal_projects_repos)  # Treat subgroups as organizations
+                    
+                    
+                    # 
+                    session.schema = 'organizations'
+                    organizations = await get_gitlab_groups(session, access_token)
+                    all_data['organizations'].extend(  organizations )
+                    
+                    # 
+                    
+                    for organization in organizations:
+                        session.schema = 'organizations'
+                        subgroups = await get_gitlab_subgroups(session, access_token, organization['id'])
+                        all_data['organizations'].extend(subgroups)  # Treat subgroups as organizations
+                        
+                    for organization in all_data['organizations']:
+                        session.schema = 'repositories'
+                        projects = await get_gitlab_projects(session, access_token, organization['id'])
+                        all_data['repositories'].extend(projects)
+    
+                            
+        print("All data pushed successfully:" , [  (key , len(val) )for key , val in all_data.items()  ])
+
+        
         return all_data
 
     except Exception as e:
@@ -101,17 +129,25 @@ async def get_paginated_results(session, url, headers):
     results = []
     callback = session.callback
     schema = session.schema
-    print("get_paginated_results", get_paginated_results)
     while url:
         
         async with session.get(url, headers=headers) as response:
             if response.status == 200:
+                # Get the Link header
+
+                
+                next_page_url = response.links.get('next', {}).get('url') 
                 data = await response.json()
+                
+                
+                
+                
                 if isinstance(data, dict):
                     results = data.get('values', []) if 'values' in data else []
                     await callback( { schema:  results } )
                     
                     url = data.get('next')  # Bitbucket uses 'next' for pagination
+                    
                 elif isinstance(data, list):
                     results = data
                     await callback( { schema:  results } )
@@ -119,6 +155,10 @@ async def get_paginated_results(session, url, headers):
                     url = None
                 else:
                     url = None
+                    
+                if url == None:
+                    url = next_page_url
+                    
             elif response.status == 429:
                 retry_after = int(response.headers.get('Retry-After', 60))
                 print(f"Rate limit hit. Retrying after {retry_after} seconds.")
@@ -129,47 +169,47 @@ async def get_paginated_results(session, url, headers):
     return results
 
 async def get_bitbucket_workspaces(session, access_token):
-    url = 'https://api.bitbucket.org/2.0/workspaces'
+    url = f'{BITBUCKET_API_HOST.get()}/2.0/workspaces'
     headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_bitbucket_projects(session, access_token, workspace_slug):
-    url = f'https://api.bitbucket.org/2.0/workspaces/{workspace_slug}/projects'
+    url = f'{BITBUCKET_API_HOST.get()}/2.0/workspaces/{workspace_slug}/projects'
     headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_bitbucket_repositories(session, access_token, workspace_slug):
-    url = f'https://api.bitbucket.org/2.0/repositories/{workspace_slug}'
+    url = f'{BITBUCKET_API_HOST.get()}/2.0/repositories/{workspace_slug}'
     headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_github_organizations(session, access_token):
-    url = 'https://api.github.com/user/orgs'
+    url = f'{GITHUB_API_HOST.get()}/user/orgs'
     headers = {'Authorization': f'{access_token}', 'Accept': 'application/vnd.github.v3+json'}
     return await get_paginated_results(session, url, headers)
 
 async def get_github_repositories(session, access_token):
-    url = 'https://api.github.com/user/repos'
+    url = f'{GITHUB_API_HOST.get()}/user/repos'
     headers = {'Authorization': f'{access_token}', 'Accept': 'application/vnd.github.v3+json'}
     return await get_paginated_results(session, url, headers)
 
 async def get_gitlab_groups(session, access_token):
-    url = 'https://gitlab.com/api/v4/groups'
+    url = f'{GITLAB_API_HOST.get()}/api/v4/groups'
     headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_gitlab_subgroups(session, access_token, group_id):
-    url = f'https://gitlab.com/api/v4/groups/{group_id}/subgroups'
+    url = f'{GITLAB_API_HOST.get()}/api/v4/groups/{group_id}/subgroups'
     headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_gitlab_projects(session, access_token, group_id):
-    url = f'https://gitlab.com/api/v4/groups/{group_id}/projects'
+    url = f'{GITLAB_API_HOST.get()}/api/v4/groups/{group_id}/projects'
     headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
 async def get_gitlab_personal_projects(session, access_token):
-    url = f'https://gitlab.com/api/v4/projects?owned=true'
+    url = f'{GITLAB_API_HOST.get()}/api/v4/projects?owned=true'
     headers = {'Authorization': f'{access_token}'}
     return await get_paginated_results(session, url, headers)
 
@@ -186,7 +226,8 @@ access_token = 'oAuth_token'
 if __name__ == "__main__":
     data = asyncio.run(get_scm_data(platform, access_token))
     if data:
-        print("All data fetched successfully:")
+
+        print("All data pushed successfully:" , [  (key , len(val) )for key , val in data.items()  ])
         with open(f"{platform}.json", "w") as outfile:
             json.dump(data, outfile)
     else:
